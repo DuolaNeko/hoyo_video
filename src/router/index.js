@@ -7,6 +7,7 @@ import About from '../views/About.vue'
 import Search from '../views/Search.vue'
 import LatestUpdates from '../views/LatestUpdates.vue'
 import BasicLayout from '../views/BasicLayout.vue'
+import Events from '../views/Events.vue'
 
 
 const routes = [
@@ -47,6 +48,11 @@ const routes = [
                 path: '/about',
                 name: 'About',
                 component: About
+            },
+            {
+                path: '/:game/events',
+                name: 'Events',
+                component: Events
             },
             {
                 path: 'search',
