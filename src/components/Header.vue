@@ -13,9 +13,6 @@ const handleGHButtonClick = () => {
 const handleSearchButtonClick = () => {
     router.push({ path: '/search' })
 }
-const handleCalendarButtonClick = () => {
-    router.push({ path: '/events' })
-}
 const handleGanttButtonClick = () => {
     router.push({ path: '/gantt' })
 }
@@ -31,8 +28,7 @@ const handleGanttButtonClick = () => {
             </span>
         </template>
         <template #extra>
-            <a-button type="text" :icon="h(CalendarOutlined)" key="3" @click="handleCalendarButtonClick" title="活动日历" />
-            <a-button type="text" :icon="h(CalendarOutlined)" key="4" @click="handleGanttButtonClick" title="活动日历-甘特图" />
+            <a-button type="text" :icon="h(CalendarOutlined)" key="3" @click="handleGanttButtonClick" title="活动日历" />
             <a-button type="text" :icon="h(SearchOutlined)" key="2" @click="handleSearchButtonClick" title="搜索" />
             <a-button type="text" :icon="h(GithubOutlined)" key="1" @click="handleGHButtonClick" title="GitHub" />
         </template>

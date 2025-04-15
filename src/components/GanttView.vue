@@ -90,9 +90,14 @@ export default {
             if ((currentDate >= startDate && currentDate <= endDate) || currentDate < startDate) {
               tasks.data.push({
                 id: key,
-                text: event.title,
+                title: event.title,
+                text: event.text, // 任务名称
+                description: event.description,
+                url: event.url,
+                type: event.type,
                 start_date: event.start,
                 end_date: event.end,
+                // 计算剩余天数
                 remainDays: Math.ceil(
                   (currentDate >= startDate && currentDate <= endDate) 
                     ? (endDate - currentDate) / (1000 * 3600 * 24) 
@@ -128,13 +133,109 @@ export default {
     const customizeConfigs = () => {
       // 设置语言为中文
       gantt.i18n.setLocale("cn");
+      
+      // 根据任务类型设置不同的CSS类
+      gantt.templates.task_class = (start, end, task) => {
+        if (!task.type) return "";
+        return `task-type-${task.type}`;
+      };
+      
+      // 自定义工具提示，显示HTML内容
+      gantt.templates.tooltip_text = (start, end, task) => {
+        // 返回空字符串，因为我们使用onTaskClick处理点击事件
+        return "";
+      };
+      
+      // 配置工具提示显示HTML
+      gantt.config.tooltip_timeout = 30000; // 设置工具提示显示时间较长
+      gantt.config.show_quick_info = false; // 禁用默认的快速信息框
+      
+      // 启用工具提示插件
+      gantt.plugins({
+        tooltip: true
+      });
+      
+      // 配置任务点击事件
+      gantt.attachEvent("onTaskClick", (id, e) => {
+        const task = gantt.getTask(id);
+        if (task.description) {
+          // 创建一个自定义的弹窗来显示HTML内容
+          const modal = document.createElement("div");
+          modal.className = "gantt-task-modal";
+          
+          // 创建模态框内容
+          const modalContent = document.createElement("div");
+          modalContent.className = "gantt-task-modal-content";
+          
+          // 创建模态框头部
+          const modalHeader = document.createElement("div");
+          modalHeader.className = "gantt-task-modal-header";
+          
+          // 创建标题
+          const title = document.createElement("h3");
+          title.textContent = task.text;
+          
+          // 创建关闭按钮
+          const closeBtn = document.createElement("span");
+          closeBtn.className = "gantt-task-modal-close";
+          closeBtn.innerHTML = "&times;";
+          
+          // 创建模态框主体
+          const modalBody = document.createElement("div");
+          modalBody.className = "gantt-task-modal-body";
+          // 使用innerHTML来渲染HTML内容
+          modalBody.innerHTML = task.description;
+          
+          // 组装模态框
+          modalHeader.appendChild(title);
+          modalHeader.appendChild(closeBtn);
+          modalContent.appendChild(modalHeader);
+          modalContent.appendChild(modalBody);
+          modal.appendChild(modalContent);
+          
+          document.body.appendChild(modal);
+          
+          // 创建一个统一的关闭弹窗函数
+          const closeModal = () => {
+            // 检查modal是否仍在文档中
+            if (document.body.contains(modal)) {
+              document.body.removeChild(modal);
+            }
+            // 确保移除事件监听器
+            document.removeEventListener("keydown", handleEscKey);
+          };
+          
+          // 添加关闭按钮事件
+          closeBtn.addEventListener("click", closeModal);
+          
+          // 点击模态框外部关闭
+          modal.addEventListener("click", (event) => {
+            if (event.target === modal) {
+              closeModal();
+            }
+          });
+          
+          // 添加ESC键关闭功能
+          const handleEscKey = (event) => {
+            if (event.key === "Escape" || event.keyCode === 27) {
+              closeModal();
+            }
+          };
+          
+          document.addEventListener("keydown", handleEscKey);
+          
+          return false; // 阻止默认行为
+        }
+        return true; // 如果没有描述，允许默认行为
+      });
+      
       // 设置表头
       gantt.config.columns = [
-        { name: "post", label: "", width: "*", align: "left", template: (task)=>{
+        { name: "post", width: "140", label: "", align: "left", template: (task)=>{
           return `<div><img src="${task.post}" class="task-image" /></div>`;
         }},
-        { name: "text", label: "任务名称", width: "*", align: "left"},
-        { name: "start_date", width: "*", label: "开始日期", align: "left" },
+        { name: "title", width: "200", label: "活动名称", align: "left"},
+        { name: "start_date", width: "100", label: "开始日期", align: "left" },
         { name: "remainDays", width: "70", label: "剩余天数", align: "center" }
       ];
       
@@ -151,6 +252,8 @@ export default {
       gantt.config.drag_progress = false;
       // 设置甘特图滚动条的大小为25px
       gantt.config.scroll_size = 25;
+      // 设置表头高度
+      gantt.config.scale_height = 50;
       // gantt.config.bar_height = 20; // 调整任务条的高度
 
       // 设置工具提示和按钮文本
@@ -169,7 +272,8 @@ export default {
       gantt.message.position = "top";
 
       // 设置任务行高 - 增加高度以确保有足够空间显示图片
-      gantt.config.row_height = 50;
+      gantt.config.row_height = 80;
+      gantt.config.bar_height = 50;
     };
     
     // 组件挂载后初始化甘特图
@@ -248,5 +352,91 @@ export default {
   width: 100%;
   max-height: 200px;
   object-fit: contain;
+}
+
+/* 不同类型任务的样式 */
+.gantt_task_line.task-type-other {
+  background-color: #1890ff;
+  border: 1px solid #0c75d4;
+}
+
+.gantt_task_line.task-type-ver_event {
+  background-color: #fa8c16;
+  border: 1px solid #d46b08;
+}
+
+.gantt_task_line.task-type-gacha{
+  background-color: #722ed1;
+  border: 1px solid #531dab;
+}
+
+/* 自定义任务模态框样式 */
+.gantt-task-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.gantt-task-modal-content {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: auto;
+  /* max-width: 1200px; */
+  max-height: 80vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.gantt-task-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #fff;
+}
+
+.gantt-task-modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.gantt-task-modal-close {
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.gantt-task-modal-close:hover {
+  color: #1890ff;
+}
+
+.gantt-task-modal-body {
+  padding: 24px;
+  line-height: 1.5;
+}
+
+/* 工具提示样式 */
+.gantt_tooltip {
+  background-color: white;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  padding: 10px;
+  max-width: 300px;
 }
 </style>
