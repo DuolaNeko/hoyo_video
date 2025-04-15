@@ -21,8 +21,6 @@ export default {
       gantt.config.date_format = "%Y-%m-%d";
       gantt.config.xml_date = "%Y-%m-%d";
       
-      // 设置语言为中文
-      gantt.i18n.setLocale("cn");
       
       // 设置显示范围为今天起的42天
       const today = new Date();
@@ -42,23 +40,6 @@ export default {
         {unit: "month", step: 1, date: "%Y年 %m月"}  
       ];
       
-      // 设置任务行高 - 增加高度以确保有足够空间显示图片
-      gantt.config.row_height = 40;
-      
-      // 自定义任务模板，在进度条左侧显示图片
-      gantt.templates.task_text = function(start, end, task){
-        return task.text;
-      };
-      
-      // 自定义任务左侧图标
-      gantt.templates.leftside_text = function(start, end, task){
-        if(task.post) {
-          // 添加onerror处理，当图片加载失败时显示替代内容
-          return `<div class="task-image-container"><img src="${task.post}" class="task-image" alt="${task.text}" onerror="this.onerror=null;this.src='https://fastcdn.mihoyo.com/content-v2/hk4e/50534/c1888e3a4a7c8e5e9b0264e16c532e0f_1682223740533881756.png';console.error('图片加载失败:',this.alt);"/></div>`;
-        }
-        return "";
-      };
-      
       // 设置今天的特殊标记
       gantt.config.show_markers = true;
       
@@ -74,9 +55,6 @@ export default {
         text: "今天"
       });
       
-      // 自定义标签文本
-      gantt.locale.labels.section_progress = "进度";
-      gantt.locale.labels.section_description = "描述";
       
       // 初始化甘特图
       gantt.init(ganttContainer.value);
@@ -104,17 +82,38 @@ export default {
           // 处理数据
           Object.keys(data).forEach((key, index) => {
             const event = data[key];
-            tasks.data.push({
-              id: key,
-              text: event.title,
-              start_date: event.start,
-              end_date: event.end,
-              progress: 0.5, // 默认进度值
-              open: true,
-              post: event.post // 添加post属性，用于显示图片
-            });
+            const currentDate = new Date();
+            const startDate = new Date(event.start);
+            const endDate = new Date(event.end);
+
+            // 过滤进行中和未开始的任务
+            if ((currentDate >= startDate && currentDate <= endDate) || currentDate < startDate) {
+              tasks.data.push({
+                id: key,
+                text: event.title,
+                start_date: event.start,
+                end_date: event.end,
+                remainDays: Math.ceil(
+                  (currentDate >= startDate && currentDate <= endDate) 
+                    ? (endDate - currentDate) / (1000 * 3600 * 24) 
+                    : (endDate - startDate) / (1000 * 3600 * 24)
+                ),
+                open: true,
+                post: event.post
+              });
+            }
           });
           
+          // 添加排序逻辑
+          tasks.data.sort((a, b) => {
+            if (a.remainDays !== b.remainDays) {
+              return a.remainDays - b.remainDays;
+            } else {
+              return new Date(a.start_date) - new Date(b.start_date);
+            }
+          });
+          
+          console.log(tasks);
           // 加载数据到甘特图
           gantt.parse(tasks);
         })
@@ -124,16 +123,36 @@ export default {
         });
     };
     
-    // 自定义错误提示信息
-    const customizeErrorMessages = () => {
-      gantt.locale.labels.error_loading = "数据加载失败";
-      gantt.locale.labels.invalid_data = "无效数据";
-      gantt.message.position = "top";
-    
-    };
-    
-    // 自定义甘特图文本
-    const customizeLabels = () => {
+
+    // 自定义甘特图配置
+    const customizeConfigs = () => {
+      // 设置语言为中文
+      gantt.i18n.setLocale("cn");
+      // 设置表头
+      gantt.config.columns = [
+        { name: "post", label: "", width: "*", align: "left", template: (task)=>{
+          return `<div><img src="${task.post}" class="task-image" /></div>`;
+        }},
+        { name: "text", label: "任务名称", width: "*", align: "left"},
+        { name: "start_date", width: "*", label: "开始日期", align: "left" },
+        { name: "remainDays", width: "70", label: "剩余天数", align: "center" }
+      ];
+      
+      // 只读模式
+      // gantt.config.readonly = true;
+      // gantt.config.click_drag = false;
+      // 禁用任务条链接拖动功能
+      gantt.config.drag_links = false;
+      // 禁用任务条左右边缘拉动功能
+      gantt.config.drag_resize = false;
+      // 禁用任务条长按移动功能
+      gantt.config.drag_move = false;
+      // 禁用任务条拖动进度条功能
+      gantt.config.drag_progress = false;
+      // 设置甘特图滚动条的大小为25px
+      gantt.config.scroll_size = 25;
+      // gantt.config.bar_height = 20; // 调整任务条的高度
+
       // 设置工具提示和按钮文本
       gantt.locale.labels.new_task = "新任务";
       gantt.locale.labels.icon_save = "保存";
@@ -141,11 +160,21 @@ export default {
       gantt.locale.labels.icon_details = "详情";
       gantt.locale.labels.icon_edit = "编辑";
       gantt.locale.labels.icon_delete = "删除";
+
+      gantt.locale.labels.section_progress = "进度";
+      gantt.locale.labels.section_description = "描述";
+
+      gantt.locale.labels.error_loading = "数据加载失败";
+      gantt.locale.labels.invalid_data = "无效数据";
+      gantt.message.position = "top";
+
+      // 设置任务行高 - 增加高度以确保有足够空间显示图片
+      gantt.config.row_height = 50;
     };
     
     // 组件挂载后初始化甘特图
     onMounted(() => {
-      customizeLabels();
+      customizeConfigs();
       initGantt();
       
       // 窗口大小变化时重新渲染甘特图
@@ -214,26 +243,10 @@ export default {
   background-color: #f9f9f9;
 }
 
-/* 任务图片样式 */
-.task-image-container {
-  position: absolute;
-  left: -30px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none; /* 确保图片不会阻挡鼠标事件 */
-}
 
 .task-image {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  object-fit: cover;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-  border: 2px solid #ffffff;
-  background-color: #fff; /* 添加背景色确保透明图片可见 */
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
 }
 </style>
