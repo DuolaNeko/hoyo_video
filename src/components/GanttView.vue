@@ -5,16 +5,17 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { gantt } from 'dhtmlx-gantt';
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css';
+import gamesData from '../data/data.json';
 // 中文本地化已内置在dhtmlx-gantt主文件中，无需单独导入
 
 export default {
   name: 'GanttView',
   setup() {
     const ganttContainer = ref(null);
-    
+    const games = ref(gamesData.games);
     // 初始化甘特图
     const initGantt = () => {
       // 配置甘特图
@@ -64,33 +65,37 @@ export default {
     };
     
     // 从event.json加载数据
-    const loadData = () => {
-      // 使用绝对路径确保正确加载event.json
-      fetch('/event.json')
-        .then(response => {
+    const loadData = async () => {
+      try {
+        // 创建一个合并所有选定游戏数据的对象
+        const allTasks = {
+          data: []
+        };
+        
+        // 为每个选定的游戏加载数据
+        for (const game of games.value) {
+          const response = await fetch(`/data/${game}/event.json`);
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.warn(`无法加载 ${game} 的数据: ${response.status}`);
+            continue;
           }
-          return response.json();
-        })
-        .then(data => {
-          // 转换数据格式为甘特图所需格式
-          const tasks = {
-            data: []
-          };
+          
+          const data = await response.json();
+          const currentDate = new Date();
           
           // 处理数据
-          Object.keys(data).forEach((key, index) => {
+          Object.keys(data).forEach((key) => {
             const event = data[key];
-            const currentDate = new Date();
             const startDate = new Date(event.start);
             const endDate = new Date(event.end);
 
             // 过滤进行中和未开始的任务
             if ((currentDate >= startDate && currentDate <= endDate) || currentDate < startDate) {
-              tasks.data.push({
-                id: key,
-                title: event.title,
+              allTasks.data.push({
+                id: `${game}-${key}`, // 添加游戏前缀以避免ID冲突
+                // title: `[${game}] ${event.title}`,
+                game: game, // 添加游戏标识
+                title: `${event.title}`,
                 text: event.text, // 任务名称
                 description: event.description,
                 url: event.url,
@@ -104,28 +109,35 @@ export default {
                     : (endDate - startDate) / (1000 * 3600 * 24)
                 ),
                 open: true,
-                post: event.post
+                post: event.post,
+                game: game // 添加游戏标识
               });
             }
           });
-          
-          // 添加排序逻辑
-          tasks.data.sort((a, b) => {
-            if (a.remainDays !== b.remainDays) {
-              return a.remainDays - b.remainDays;
-            } else {
-              return new Date(a.start_date) - new Date(b.start_date);
-            }
-          });
-          
-          console.log(tasks);
-          // 加载数据到甘特图
-          gantt.parse(tasks);
-        })
-        .catch(error => {
-          console.error('加载数据失败:', error);
-          gantt.message({type: "error", text: "数据加载失败，请稍后重试"});
+        }
+        
+        // 添加排序逻辑
+        allTasks.data.sort((a, b) => {
+          if (a.remainDays !== b.remainDays) {
+            return a.remainDays - b.remainDays;
+          } else {
+            return new Date(a.start_date) - new Date(b.start_date);
+          }
         });
+        
+        console.log(allTasks);
+        // 加载数据到甘特图
+        gantt.clearAll();
+        gantt.parse(allTasks);
+      } catch (error) {
+        console.error('加载数据失败:', error);
+        gantt.message({type: "error", text: "数据加载失败，请稍后重试"});
+      }
+    };
+    
+    // 当复选框选择变化时重新加载数据
+    const reloadData = () => {
+      loadData();
     };
     
 
@@ -134,10 +146,16 @@ export default {
       // 设置语言为中文
       gantt.i18n.setLocale("cn");
       
-      // 根据任务类型设置不同的CSS类
+      // 根据任务类型和游戏设置不同的CSS类
       gantt.templates.task_class = (start, end, task) => {
-        if (!task.type) return "";
-        return `task-type-${task.type}`;
+        let classes = [];
+        if (task.type) {
+          classes.push(`task-type-${task.type}`);
+        }
+        if (task.game) {
+          classes.push(`game-${task.game}`);
+        }
+        return classes.join(" ");
       };
       
       // 自定义工具提示，显示HTML内容
@@ -295,7 +313,9 @@ export default {
     });
     
     return {
-      ganttContainer
+      ganttContainer,
+      games,
+      reloadData
     };
   }
 };
